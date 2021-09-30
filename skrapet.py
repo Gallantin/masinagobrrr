@@ -1,9 +1,11 @@
 import requests
 import time
 from bs4 import BeautifulSoup as bs
+import csv
 
-URL = 'https://www.ss.lv/lv/transport/cars/today/sell/'
+URL = 'https://www.ss.lv/lv/transport/cars/today-5/sell/filter/'
 LAPAS = 'lapas/'
+DATI = 'dati/'
 
 def saglabat(url, datne):
     rezultats = requests.get(url)
@@ -20,6 +22,7 @@ def lejupieladet_lapas(cik):
 
 
 def info(datne):
+    dati = []
     with open(datne, 'r', encoding='UTF-8') as f:
         html = f.read()
 
@@ -40,9 +43,78 @@ def info(datne):
     rindas = auto_tabula.find_all("tr")
 
     for rinda in rindas[1:-1]:
-        print(rinda)
-        print("=======================")
-        print("=======================")
-        print("=======================")    
+        auto = {}
+        # print(rinda)
+        # print("=======================")
+        # print("=======================")
+        # print("=======================")    
 
-info('lapas/1_lapa.html')
+        lauki = rinda.find_all("td")
+        # for lauks in lauki:
+        #     print(lauks)
+        #     print("=======================")
+        
+        auto['saite'] = lauki[1].find("a")["href"]
+        auto['bilde'] = lauki[1].find("img")["src"]
+        auto['apraksts'] = lauki[2].find("a").text.replace("\n", "")
+
+        if not lauki[3].br:
+            continue
+        
+        lauki[3].br.replace_with('!')
+        auto['marka'] = lauki[3].text.replace("!", " ")
+        auto['razotajs'] = lauki[3].text.split("!")[0]
+        auto['modelis'] = lauki[3].text.split("!")[1]
+
+        auto['gads'] = lauki[4].text
+
+        tilpums = lauki[5].text
+        if tilpums[-1] == "D":
+            auto['tilpums'] = tilpums[:-1]
+            auto['dzinejs'] = "Dīzelis"
+        elif tilpums[-1] == "H":
+            auto['tilpums'] = tilpums[:-1]
+            auto['dzinejs'] = "Hibrīds"
+        elif tilpums[-1] == "E":
+            auto['tilpums'] = 0
+            auto['dzinejs'] = "Elektro"
+        else:
+            auto['tilpums'] = tilpums
+            auto['dzinejs'] = "Benzīns"
+        
+        
+        if lauki[6].text != "-":
+            auto['nobraukums'] = lauki[6].text.replace(" tūkst.", "")
+        else:
+            continue
+
+        auto['cena'] = lauki[7].text.replace("  €", "").replace(",", "")
+        # print(auto)
+        # exit()
+        dati.append(auto)
+
+    return dati
+
+def saglabat_datus(dati):
+    with open(f"{DATI}ss_lv_auto.csv", 'w', encoding='UTF-8', newline="") as f:
+        kolonu_nosaukumi = ['razotajs', 'modelis', 'marka', 'gads', 'tilpums', 'dzinejs', 'nobraukums', 'cena', 'apraksts', 'bilde', 'saite']
+        w = csv.DictWriter(f, fieldnames= kolonu_nosaukumi)
+        w.writeheader()
+        for auto in dati:
+            w.writerow(auto)
+
+def izvilkt_datus(cik):
+    visi_dati = []
+    for i in range(1, cik + 1):
+        datne = f"{LAPAS}{i}_lapa.html"
+
+        datnes_dati = info(datne)
+        visi_dati += datnes_dati
+
+    saglabat_datus(visi_dati)
+
+
+cik_lapas = 50
+#lejupieladet_lapas(cik_lapas)
+izvilkt_datus(cik_lapas)
+
